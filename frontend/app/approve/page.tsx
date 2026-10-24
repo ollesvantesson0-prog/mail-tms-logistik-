@@ -1,14 +1,167 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState } from "react";
+
+import { api, MEDDELANDETYPER, ordersUrl, useCompanyId, type Order, type TolkadOrder } from "../lib/api";
+import OrderEditor from "./order-editor";
+
+/** Tar bort tomma rader i listorna innan ordern sparas. */
+function rensa(order: TolkadOrder): TolkadOrder {
+  return {
+    ...order,
+    saknas: order.saknas.map((rad) => rad.trim()).filter(Boolean),
+    osakerheter: order.osakerheter.map((rad) => rad.trim()).filter(Boolean),
+  };
+}
+
+function rubrik(order: Order): string {
+  const fran = order.order.upphamtning.ort || "?";
+  const till = order.order.leveranser.map((leverans) => leverans.ort || "?").join(", ") || "?";
+  return `${order.order.kund.foretag || "Okänd kund"}: ${fran} → ${till}`;
+}
+
 export default function ApprovePage() {
+  const { companyId, error: companyError } = useCompanyId();
+  const [orders, setOrders] = useState<Order[] | null>(null);
+  const [selectedId, setSelectedId] = useState("");
+  const [draft, setDraft] = useState<TolkadOrder | null>(null);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!companyId) return;
+    api<Order[]>(ordersUrl(companyId, "?status=pending"))
+      .then((pending) => {
+        // Äldst först, så att det som kom in först granskas först.
+        const sorted = [...pending].reverse();
+        setOrders(sorted);
+        if (sorted.length > 0) select(sorted[0]);
+      })
+      .catch((fetchError: Error) => setError(fetchError.message));
+  }, [companyId]);
+
+  const selected = orders?.find((order) => order.id === selectedId) ?? null;
+
+  function select(order: Order) {
+    setSelectedId(order.id);
+    setDraft(order.order);
+    setError("");
+  }
+
+  async function save(): Promise<Order> {
+    const saved = await api<Order>(ordersUrl(companyId, `/${selectedId}`), {
+      method: "PUT",
+      body: JSON.stringify({ order: rensa(draft!) }),
+    });
+    setOrders((current) => current!.map((order) => (order.id === saved.id ? saved : order)));
+    setDraft(saved.order);
+    return saved;
+  }
+
+  async function run(action: "save" | "approve" | "discard") {
+    if (action === "discard" && !window.confirm("Kasta den här ordern?")) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      if (action !== "discard") await save();
+      if (action === "save") {
+        setMessage("Ändringarna är sparade.");
+        return;
+      }
+      await api<Order>(ordersUrl(companyId, `/${selectedId}/${action}`), { method: "POST" });
+      const remaining = orders!.filter((order) => order.id !== selectedId);
+      setOrders(remaining);
+      setMessage(action === "approve" ? "Ordern är godkänd." : "Ordern är kastad.");
+      if (remaining.length > 0) {
+        select(remaining[0]);
+      } else {
+        setSelectedId("");
+        setDraft(null);
+      }
+    } catch (actionError) {
+      setError(actionError instanceof Error ? actionError.message : "Något gick fel.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <>
       <p className="eyebrow">Arbetsyta</p>
       <h1>Godkänn</h1>
       <p className="description">
-        Här granskas och godkänns AI-tolkade ordrar innan de blir aktiva.
+        Granska och rätta AI:ns tolkning. Rött betyder att viktig information saknas,
+        gult att något är osäkert.
       </p>
-      <section className="placeholder">
-        <strong>Granskningsflödet kopplas in i ett senare steg.</strong>
-      </section>
+      {(error || companyError) && <p className="error-message" role="alert">{error || companyError}</p>}
+      {message && <p className="success-message" role="status">{message}</p>}
+
+      {orders === null && !error && !companyError && <p className="muted">Hämtar ordrar…</p>}
+      {orders?.length === 0 && (
+        <section className="placeholder">
+          <strong>Inget att granska.</strong>
+          <p className="muted">
+            Tolka ett nytt meddelande i <Link href="/inbox">Inkorgen</Link>.
+          </p>
+        </section>
+      )}
+
+      {orders && orders.length > 0 && (
+        <div className="review-layout">
+          <nav aria-label="Ordrar att granska" className="review-list">
+            {orders.map((order) => (
+              <button
+                className={order.id === selectedId ? "review-item selected" : "review-item"}
+                key={order.id}
+                onClick={() => select(order)}
+                type="button"
+              >
+                <strong>{rubrik(order)}</strong>
+                <span>
+                  {MEDDELANDETYPER[order.meddelandetyp] ?? order.meddelandetyp}
+                  {order.order.saknas.length > 0 && ` · ${order.order.saknas.length} saknas`}
+                </span>
+              </button>
+            ))}
+          </nav>
+
+          {selected && draft && (
+            <section className="placeholder">
+              <p className="eyebrow">{MEDDELANDETYPER[selected.meddelandetyp] ?? selected.meddelandetyp}</p>
+              <p>{selected.sammanfattning}</p>
+              <details className="original-message">
+                <summary>
+                  Originalmeddelande från {selected.meddelande.avsandare || "okänd avsändare"},{" "}
+                  {selected.meddelande.mottagen.replace("T", " ").slice(0, 16)}
+                </summary>
+                <pre>{selected.meddelande.text}</pre>
+              </details>
+
+              <OrderEditor
+                key={selected.id}
+                meddelandetyp={selected.meddelandetyp}
+                onChange={setDraft}
+                order={draft}
+              />
+
+              <div className="button-row">
+                <button className="primary-button" disabled={busy} onClick={() => run("approve")} type="button">
+                  Godkänn
+                </button>
+                <button className="secondary-button" disabled={busy} onClick={() => run("save")} type="button">
+                  Spara utkast
+                </button>
+                <button className="danger-button" disabled={busy} onClick={() => run("discard")} type="button">
+                  Kasta
+                </button>
+              </div>
+            </section>
+          )}
+        </div>
+      )}
     </>
   );
 }

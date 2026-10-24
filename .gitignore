@@ -6,3 +6,4 @@ testresultat/
 .DS_Store
 node_modules/
 .next/
+*.tsbuildinfo

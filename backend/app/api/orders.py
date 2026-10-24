@@ -160,8 +160,13 @@ def csv_row(order: Order) -> dict[str, str]:
         "kund": data.get("kund", {}).get("foretag", ""),
         "kundreferens": data.get("kundreferens", ""),
         "fran": upphamtning.get("ort", ""),
-        "till": "; ".join(leverans.get("ort", "") for leverans in leveranser),
-        "datum": upphamtning.get("datum", ""),
+        # Ort i första hand, annars företagsnamnet (t.ex. "Coop Tuve" utan adress).
+        "till": "; ".join(
+            leverans.get("ort") or leverans.get("foretag", "") for leverans in leveranser
+        ),
+        # Upphämtningsdatum, annars första leveransdatumet.
+        "datum": upphamtning.get("datum")
+        or next((leverans["datum"] for leverans in leveranser if leverans.get("datum")), ""),
         "gods": "; ".join(
             f"{rad.get('antal') or ''} {rad.get('typ', '')} {rad.get('beskrivning', '')}".strip()
             for rad in gods
