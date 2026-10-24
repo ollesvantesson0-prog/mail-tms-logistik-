@@ -4,3 +4,5 @@ __pycache__/
 *.db
 testresultat/
 .DS_Store
+node_modules/
+.next/
