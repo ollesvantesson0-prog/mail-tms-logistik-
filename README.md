@@ -40,8 +40,9 @@ kontrolleras genom medlemskap. En användare får 404 om den begär ett företag
 den inte tillhör.
 
 Databasschemat skapas/uppdateras automatiskt med Alembic när backend-containern
-startar. De andra webbplatserna är ännu platshållare; det finns inga API:er för
-att skapa eller lista verksamhetsordrar, fordon eller förare än.
+startar. Backend har API:er för att tolka, granska, godkänna och exportera
+ordrar (se `backend/README.md`), men webbsidorna för dem är ännu platshållare.
+Det finns inga API:er för fordon eller förare än.
 
 Det här är en **lokal inlärningsversion**, inte redo för riktiga verksamhetsdata.
 Självregistrering blockeras i produktionsläge. Innan driftsättning behövs bland
