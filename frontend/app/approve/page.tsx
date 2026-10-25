@@ -14,6 +14,7 @@ import {
 } from "../lib/api";
 import ChangePanel from "./change-panel";
 import OrderEditor from "./order-editor";
+import ReplyDraft from "./reply-draft";
 
 /** Tar bort tomma rader i listorna innan ordern sparas. */
 function rensa(order: TolkadOrder): TolkadOrder {
@@ -183,6 +184,15 @@ export default function ApprovePage() {
                   />
                 </>
               )}
+
+              <ReplyDraft
+                companyId={companyId}
+                key={`reply-${selected.id}`}
+                onError={setError}
+                onSaved={replaceOrder}
+                order={selected}
+                prepare={save}
+              />
 
               <div className="button-row">
                 <button

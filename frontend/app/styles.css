@@ -498,6 +498,25 @@ th {
   font-size: 12px;
 }
 
+.reply-draft {
+  display: grid;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--canvas);
+}
+
+.reply-draft h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.reply-draft p {
+  margin: 0;
+}
+
 @media (max-width: 700px) {
   .review-layout {
     grid-template-columns: 1fr;

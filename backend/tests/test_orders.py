@@ -256,6 +256,18 @@ class OrderTests(unittest.TestCase):
             self.client.put(f"{base}/{other['id']}/target", json={"mal_order_id": other["id"]}).status_code, 404
         )
 
+    def test_reply_draft_is_saved_on_order(self) -> None:
+        order_id = self.interpret()["ordrar"][0]["id"]
+        draft = {"amne": "SV: Transport torsdag", "text": "Hej Linda! Vilken tid kan vi hämta?"}
+        with patch("backend.app.api.orders.skriv_svar", return_value=draft) as fake:
+            response = self.client.post(f"/api/companies/{self.company_id}/orders/{order_id}/reply-draft")
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(fake.call_args.kwargs["akeri"], "Åkeri Ett")
+        self.assertEqual(response.json()["svarsutkast"]["text"], draft["text"])
+
+        stored = self.client.get(f"/api/companies/{self.company_id}/orders/{order_id}").json()
+        self.assertEqual(stored["svarsutkast"]["amne"], "SV: Transport torsdag")
+
     def test_requires_login(self) -> None:
         self.client.post("/api/auth/logout")
         response = self.client.post(f"/api/companies/{self.company_id}/orders/interpret", json=MESSAGE)

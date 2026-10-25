@@ -57,6 +57,13 @@ Tolkningen, originalmeddelandet och meddelandetypen sparas i `orders.details`.
   ändringsraden får status `applied`, och målordern får en post i `historik`.
 - Svaret innehåller `mal_order` och `forandringar` (före/efter per fält).
 
+### Svarsutkast
+
+- `POST /{order_id}/reply-draft` låter Claude skriva ett svar till kunden
+  (`app/modules/order_intake/reply.py`): frågor om det som saknas eller är osäkert,
+  annars en bekräftelse, på kundens språk och som SMS om kunden skrev SMS.
+  Utkastet sparas i `details.svarsutkast` och skickas aldrig automatiskt.
+
 ## Flotta
 
 Under `/api/companies/{company_id}` och med samma medlemskapskontroll:

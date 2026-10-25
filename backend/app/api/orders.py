@@ -2,6 +2,8 @@
 
 import csv
 import io
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any, Literal
 
@@ -14,9 +16,10 @@ from sqlalchemy.orm import Session
 
 from backend.app.core.security import get_current_user, require_company_membership
 from backend.app.db.session import get_db
-from backend.app.models.entities import Driver, Order, Vehicle
+from backend.app.models.entities import Company, Driver, Order, Vehicle
 from backend.app.modules.order_intake.changes import forandringar, hitta_mal_order, sla_ihop
 from backend.app.modules.order_intake.interpreter import tolka_meddelande
+from backend.app.modules.order_intake.reply import skriv_svar
 
 router = APIRouter(prefix="/api/companies/{company_id}/orders", tags=["orders"])
 
@@ -60,6 +63,7 @@ class OrderOut(BaseModel):
     mal_order: dict[str, Any] | None
     forandringar: list[dict[str, str]]
     historik: list[dict[str, Any]]
+    svarsutkast: dict[str, str] | None
 
 
 class InterpretResponse(BaseModel):
@@ -106,6 +110,7 @@ def to_out(order: Order, db: Session) -> OrderOut:
             forandringar(target.details["order"], order.details["order"]) if show_diff else []
         ),
         historik=order.details.get("historik", []),
+        svarsutkast=order.details.get("svarsutkast"),
     )
 
 
@@ -139,6 +144,23 @@ def require_pending(order: Order) -> None:
         )
 
 
+@contextmanager
+def ai_errors(namn: str) -> Iterator[None]:
+    """Gör om fel från Claude-anrop till begripliga HTTP-fel."""
+    try:
+        yield
+    except anthropic.AuthenticationError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"{namn} saknar en giltig ANTHROPIC_API_KEY.",
+        ) from error
+    except (anthropic.APIError, RuntimeError) as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"{namn} misslyckades: {error}",
+        ) from error
+
+
 @router.post("/interpret", response_model=InterpretResponse, status_code=status.HTTP_201_CREATED)
 def interpret_message(
     company_id: str,
@@ -147,18 +169,8 @@ def interpret_message(
     db: Session = Depends(get_db),
 ) -> InterpretResponse:
     require_member(request, db, company_id)
-    try:
+    with ai_errors("AI-tolkningen"):
         resultat = tolka_meddelande(body.meddelande, body.avsandare, body.mottagen)
-    except anthropic.AuthenticationError as error:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="AI-tolkningen saknar en giltig ANTHROPIC_API_KEY.",
-        ) from error
-    except (anthropic.APIError, RuntimeError) as error:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"AI-tolkningen misslyckades: {error}",
-        ) from error
 
     meddelande = {
         "text": body.meddelande,
@@ -425,4 +437,34 @@ def assign_order(
     db.commit()
     # Läs om relationerna så att svaret visar det nya fordonet och den nya föraren.
     db.refresh(order)
+    return to_out(order, db)
+
+
+@router.post("/{order_id}/reply-draft", response_model=OrderOut)
+def create_reply_draft(
+    company_id: str,
+    order_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> OrderOut:
+    """Låter AI:n skriva ett svarsutkast till kunden. Inget skickas automatiskt."""
+    require_member(request, db, company_id)
+    order = get_company_order(db, company_id, order_id)
+    company = db.get(Company, company_id)
+    target = target_of(db, order) if is_change(order) else None
+    with ai_errors("Svarsutkastet"):
+        utkast = skriv_svar(
+            meddelande=order.details.get("meddelande", {}),
+            meddelandetyp=order.details.get("meddelandetyp", ""),
+            order=order.details.get("order", {}),
+            akeri=company.name,
+            forandringar=(
+                forandringar(target.details["order"], order.details["order"]) if target else None
+            ),
+        )
+    order.details = {
+        **order.details,
+        "svarsutkast": {**utkast, "skapad": datetime.now(timezone.utc).isoformat()},
+    }
+    db.commit()
     return to_out(order, db)

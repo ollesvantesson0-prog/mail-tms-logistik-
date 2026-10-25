@@ -65,6 +65,7 @@ export type Order = {
   mal_order: MalOrder | null;
   forandringar: { falt: string; fore: string; efter: string }[];
   historik: { typ: string; tid: string; sammanfattning: string }[];
+  svarsutkast: { amne: string; text: string; skapad: string } | null;
 };
 
 export type MalOrder = {
