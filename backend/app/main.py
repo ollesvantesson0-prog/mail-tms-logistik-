@@ -7,6 +7,7 @@ from sqlalchemy import text
 from backend.app.api.auth import companies_router, router as auth_router
 from backend.app.api.driver import router as driver_router
 from backend.app.api.fleet import router as fleet_router
+from backend.app.api.followup import router as followup_router
 from backend.app.api.orders import router as orders_router
 from backend.app.api.planning import router as planning_router
 from backend.app.db.session import engine
@@ -25,6 +26,7 @@ app.include_router(orders_router)
 app.include_router(fleet_router)
 app.include_router(planning_router)
 app.include_router(driver_router)
+app.include_router(followup_router)
 
 
 @app.get("/api/health", tags=["system"])

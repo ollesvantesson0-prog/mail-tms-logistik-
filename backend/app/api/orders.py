@@ -5,6 +5,7 @@ import io
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from typing import Any, Literal
 
 import anthropic
@@ -19,7 +20,7 @@ from backend.app.db.session import get_db
 from backend.app.models.entities import Company, Driver, Order, OrderEvent, Vehicle, as_utc
 from backend.app.modules.order_intake.changes import forandringar, hitta_mal_order, sla_ihop
 from backend.app.modules.order_intake.interpreter import tolka_meddelande
-from backend.app.modules.order_intake.reply import skriv_svar
+from backend.app.modules.order_intake.reply import skriv_kundbesked, skriv_svar
 
 router = APIRouter(prefix="/api/companies/{company_id}/orders", tags=["orders"])
 
@@ -36,6 +37,19 @@ class InterpretRequest(BaseModel):
 
 class UpdateOrderRequest(BaseModel):
     order: dict[str, Any]
+
+
+class NoticeRequest(BaseModel):
+    # Antingen en händelse från föraren, eller en försening som systemet har upptäckt.
+    event_id: str | None = None
+    typ: Literal["delay"] | None = None
+
+
+class NoticeDraft(BaseModel):
+    amne: str
+    text: str
+    epost: str
+    telefon: str
 
 
 class TargetRequest(BaseModel):
@@ -123,6 +137,7 @@ def to_out(order: Order, db: Session) -> OrderOut:
                 "created_at": as_utc(event.created_at),
                 "driver_name": event.driver.name if event.driver else None,
                 "has_photo": event.photo_type is not None,
+                "handled_at": as_utc(event.handled_at) if event.handled_at else None,
             }
             for event in order.events
         ],
@@ -502,3 +517,68 @@ def event_photo(
     if event is None or event.photo is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fotot hittades inte.")
     return Response(content=event.photo, media_type=event.photo_type)
+
+
+def get_order_event(db: Session, order: Order, event_id: str) -> OrderEvent:
+    event = db.scalar(select(OrderEvent).where(OrderEvent.id == event_id, OrderEvent.order_id == order.id))
+    if event is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Händelsen hittades inte.")
+    return event
+
+
+@router.post("/{order_id}/events/{event_id}/handle", response_model=OrderOut)
+def handle_event(
+    company_id: str,
+    order_id: str,
+    event_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> OrderOut:
+    """Markerar en avvikelse eller försening som hanterad, så att den försvinner från uppföljningen."""
+    require_member(request, db, company_id)
+    order = get_company_order(db, company_id, order_id)
+    event = get_order_event(db, order, event_id)
+    event.handled_at = datetime.now(timezone.utc)
+    db.commit()
+    return to_out(order, db)
+
+
+@router.post("/{order_id}/notice-draft", response_model=NoticeDraft)
+def create_notice_draft(
+    company_id: str,
+    order_id: str,
+    body: NoticeRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> NoticeDraft:
+    """AI-utkast till kundbesked om en leverans, avvikelse eller försening. Inget skickas."""
+    require_member(request, db, company_id)
+    order = get_company_order(db, company_id, order_id)
+    if body.event_id:
+        event = get_order_event(db, order, body.event_id)
+        handelse = {
+            "typ": event.type,
+            # Svensk tid, så att beskedet visar rätt klockslag.
+            "tid": as_utc(event.created_at).astimezone(ZoneInfo("Europe/Stockholm")).strftime("%Y-%m-%d %H:%M"),
+            "anteckning": event.note,
+            "har_foto": event.photo_type is not None,
+        }
+    elif body.typ == "delay":
+        handelse = {"typ": "delay", "anteckning": "Ingen ny tid är känd ännu."}
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ange händelse eller typ.")
+
+    with ai_errors("Kundbeskedet"):
+        utkast = skriv_kundbesked(
+            meddelande=order.details.get("meddelande", {}),
+            order=order.details.get("order", {}),
+            akeri=db.get(Company, company_id).name,
+            handelse=handelse,
+        )
+    kund = order.details.get("order", {}).get("kund", {})
+    avsandare = order.details.get("meddelande", {}).get("avsandare", "")
+    return NoticeDraft(
+        **utkast,
+        epost=kund.get("epost") or (avsandare if "@" in avsandare else ""),
+        telefon=kund.get("telefon") or ("" if "@" in avsandare else avsandare),
+    )

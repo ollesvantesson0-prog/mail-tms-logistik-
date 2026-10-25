@@ -31,7 +31,12 @@ const KRAV: [keyof Krav, string][] = [
   ["akut", "Akut"],
 ];
 
-const HANDELSER: Record<string, string> = { picked_up: "Hämtat", delivered: "Levererat", deviation: "Avvikelse" };
+const HANDELSER: Record<string, string> = {
+  picked_up: "Hämtat",
+  delivered: "Levererat",
+  deviation: "Avvikelse",
+  delay: "Försenad",
+};
 
 function idag(): string {
   const now = new Date();
@@ -83,7 +88,8 @@ function Stopp({ rubrik, plats }: { rubrik: string; plats: Plats }) {
 }
 
 function JobbKort({ job, onReport }: { job: Job; onReport: (body: object) => Promise<void> }) {
-  const [avvikelse, setAvvikelse] = useState(false);
+  // Formuläret för avvikelse eller försening, eller null när knapparna visas.
+  const [rapport, setRapport] = useState<"deviation" | "delay" | null>(null);
   const [note, setNote] = useState("");
   const [foto, setFoto] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -97,14 +103,14 @@ function JobbKort({ job, onReport }: { job: Job; onReport: (body: object) => Pro
     }
   }
 
-  async function sendAvvikelse() {
+  async function sendRapport() {
     await report({
-      type: "deviation",
+      type: rapport,
       note,
       photo_base64: foto ? await forminska(foto) : null,
       photo_type: foto ? "image/jpeg" : null,
     });
-    setAvvikelse(false);
+    setRapport(null);
     setNote("");
     setFoto(null);
   }
@@ -157,28 +163,39 @@ function JobbKort({ job, onReport }: { job: Job; onReport: (body: object) => Pro
         </ul>
       )}
 
-      {avvikelse ? (
+      {rapport ? (
         <div className="driver-deviation">
           <textarea
             onChange={(event) => setNote(event.target.value)}
-            placeholder="Vad har hänt? T.ex. skadad pall, stängt, fel adress"
+            placeholder={
+              rapport === "delay"
+                ? "Hur sen blir du? T.ex. ca 30 min, kö på E6"
+                : "Vad har hänt? T.ex. skadad pall, stängt, fel adress"
+            }
             rows={3}
             value={note}
           />
-          <label className="driver-photo">
-            {foto ? `Foto valt: ${foto.name}` : "Ta foto (valfritt)"}
-            <input
-              accept="image/*"
-              capture="environment"
-              onChange={(event) => setFoto(event.target.files?.[0] ?? null)}
-              type="file"
-            />
-          </label>
+          {rapport === "deviation" && (
+            <label className="driver-photo">
+              {foto ? `Foto valt: ${foto.name}` : "Ta foto (valfritt)"}
+              <input
+                accept="image/*"
+                capture="environment"
+                onChange={(event) => setFoto(event.target.files?.[0] ?? null)}
+                type="file"
+              />
+            </label>
+          )}
           <div className="driver-buttons">
-            <button className="driver-button warn" disabled={busy || (!note.trim() && !foto)} onClick={sendAvvikelse} type="button">
-              {busy ? "Skickar…" : "Skicka avvikelse"}
+            <button
+              className="driver-button warn"
+              disabled={busy || (!note.trim() && !(rapport === "deviation" && foto))}
+              onClick={sendRapport}
+              type="button"
+            >
+              {busy ? "Skickar…" : rapport === "delay" ? "Skicka försening" : "Skicka avvikelse"}
             </button>
-            <button className="driver-button ghost" disabled={busy} onClick={() => setAvvikelse(false)} type="button">
+            <button className="driver-button ghost" disabled={busy} onClick={() => setRapport(null)} type="button">
               Avbryt
             </button>
           </div>
@@ -195,7 +212,12 @@ function JobbKort({ job, onReport }: { job: Job; onReport: (body: object) => Pro
               Levererat
             </button>
           )}
-          <button className="driver-button ghost" disabled={busy} onClick={() => setAvvikelse(true)} type="button">
+          {status !== "delivered" && (
+            <button className="driver-button ghost" disabled={busy} onClick={() => setRapport("delay")} type="button">
+              Försenad
+            </button>
+          )}
+          <button className="driver-button ghost" disabled={busy} onClick={() => setRapport("deviation")} type="button">
             Avvikelse
           </button>
         </div>

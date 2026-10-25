@@ -27,7 +27,7 @@ PHOTO_TYPES = ("image/jpeg", "image/png", "image/webp")
 
 
 class EventIn(BaseModel):
-    type: Literal["picked_up", "delivered", "deviation"]
+    type: Literal["picked_up", "delivered", "deviation", "delay"]
     note: str = Field(default="", max_length=2000)
     # Fotot skickas som base64-text så att formuläret kan vara vanlig JSON.
     photo_base64: str | None = Field(default=None, max_length=MAX_PHOTO_BYTES * 2)
@@ -147,6 +147,11 @@ def report_event(token: str, order_id: str, body: EventIn, db: Session = Depends
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Beskriv avvikelsen eller ta ett foto.",
+        )
+    if body.type == "delay" and not body.note.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Skriv hur sen du blir, t.ex. \"ca 30 min, kö på E6\".",
         )
 
     db.add(

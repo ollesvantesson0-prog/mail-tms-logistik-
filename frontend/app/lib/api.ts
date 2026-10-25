@@ -73,11 +73,12 @@ export type Order = {
 /** Något föraren har rapporterat. */
 export type OrderEvent = {
   id: string;
-  type: "picked_up" | "delivered" | "deviation";
+  type: "picked_up" | "delivered" | "deviation" | "delay";
   note: string;
   created_at: string;
   driver_name: string | null;
   has_photo: boolean;
+  handled_at: string | null;
 };
 
 export type MalOrder = {

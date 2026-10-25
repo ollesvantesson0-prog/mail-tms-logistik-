@@ -84,10 +84,22 @@ Fordon och förare tas inte bort. De inaktiveras med `is_active: false`.
 - `GET /api/driver/{nyckel}?datum=YYYY-MM-DD` visar förarens godkända jobb för dagen.
   Ingen inloggning krävs: nyckeln är förarens behörighet.
 - `POST /api/driver/{nyckel}/jobs/{order_id}/events` med `type` `picked_up`,
-  `delivered` eller `deviation` (text och/eller foto som base64, max 3 MB).
+  `delivered`, `delay` (text krävs) eller `deviation` (text och/eller foto som
+  base64, max 3 MB).
   Händelserna sparas i `order_events`, och `orders.execution_status` uppdateras.
 - `GET /api/companies/{company_id}/orders/{order_id}/events/{event_id}/photo` visar
   fotot för trafikledaren.
+
+## Uppföljning
+
+- `GET /api/companies/{company_id}/followup?nu=YYYY-MM-DDTHH:MM` (webbläsarens lokala
+  tid) listar ohanterade avvikelser och förseningar, jobb vars tidsfönster har
+  passerat utan rapport, och dagens jobb utan bil eller förare. Svaret innehåller
+  också dagens siffror och dagens levererade jobb. Reglerna är fasta, inte AI.
+- `POST /orders/{order_id}/events/{event_id}/handle` markerar en händelse som hanterad.
+- `POST /orders/{order_id}/notice-draft` med `{"event_id": ...}` eller
+  `{"typ": "delay"}` låter Claude skriva ett kundbesked (`skriv_kundbesked` i
+  `app/modules/order_intake/reply.py`). Händelsetiden skickas i svensk tid.
 
 ## Planering
 

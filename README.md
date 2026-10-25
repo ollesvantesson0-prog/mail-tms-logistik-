@@ -67,9 +67,16 @@ uv run alembic -c backend/alembic.ini upgrade head
 
 5. **Förarna** (`/driver/<länk>`): under Flotta skapar du en personlig länk per
    förare och skickar den med SMS. Föraren ser sina jobb för dagen i mobilen,
-   med karta och telefonnummer, och trycker Hämtat, Levererat eller Avvikelse
-   (med text och foto). Det syns direkt i planeringsvyn. Ingen app och ingen
+   med karta och telefonnummer, och trycker Hämtat, Levererat, Försenad eller
+   Avvikelse (med text och foto). Det syns direkt i planeringsvyn. Ingen app och ingen
    inloggning behövs. En ny länk eller "Spärra länk" stänger den gamla.
+
+6. **Uppföljning** (`/followup`): det som behöver uppmärksamhet just nu. Det kan
+   vara avvikelser och förseningar från förarna, jobb som borde ha hämtats eller
+   levererats enligt tidsfönstren, eller dagens jobb utan bil eller förare. Här
+   ser du också dagens siffror och dagens leveranser. "Skriv kundbesked" låter
+   AI:n skriva ett leverans-, avvikelse- eller förseningsbesked som du skickar
+   själv. "Markera hanterad" tar bort punkten från listan.
 
 **Flotta** (`/fleet`): lägg till, ändra och inaktivera åkeriets fordon och förare,
 med egenskaper som maxlast, pallplatser, kyl, bakgavellyft, kran och ADR.

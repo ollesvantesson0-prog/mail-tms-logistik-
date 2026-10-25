@@ -116,7 +116,7 @@ class Order(Base):
 
 
 class OrderEvent(Base):
-    """Något föraren har rapporterat: hämtat, levererat eller en avvikelse."""
+    """Något föraren har rapporterat: hämtat, levererat, avvikelse eller försening."""
 
     __tablename__ = "order_events"
 
@@ -135,6 +135,8 @@ class OrderEvent(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    # När trafikledaren har tagit hand om en avvikelse eller försening.
+    handled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     order: Mapped[Order] = relationship(back_populates="events")
     driver: Mapped["Driver | None"] = relationship()

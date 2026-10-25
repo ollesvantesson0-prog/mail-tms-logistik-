@@ -47,6 +47,12 @@ function kapacitet(varde: number, max: number | null, enhet: string): string {
 export default function PlanPage() {
   const { companyId, error: companyError } = useCompanyId();
   const [datum, setDatum] = useState(idag);
+
+  // Uppföljningen länkar hit med ?datum=YYYY-MM-DD.
+  useEffect(() => {
+    const fran = new URLSearchParams(window.location.search).get("datum");
+    if (fran && /^\d{4}-\d{2}-\d{2}$/.test(fran)) setDatum(fran);
+  }, []);
   const [plan, setPlan] = useState<DayPlan | null>(null);
   const [suggestions, setSuggestions] = useState<SuggestResult | null>(null);
   const [error, setError] = useState("");

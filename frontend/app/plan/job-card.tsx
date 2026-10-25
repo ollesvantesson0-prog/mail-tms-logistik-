@@ -34,7 +34,7 @@ export default function JobCard({ order: row, companyId, varningar = [], childre
   const upp = order.upphamtning;
   const vikt = order.gods.reduce((sum, gods) => sum + (gods.vikt_kg ?? 0), 0);
   const krav = Object.entries(KRAV).filter(([key]) => order.krav[key as keyof typeof order.krav]);
-  const avvikelser = row.events.filter((event) => event.type === "deviation");
+  const avvikelser = row.events.filter((event) => event.type === "deviation" || event.type === "delay");
   const klockslag = (iso: string) => new Date(iso).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
   const senaste = [...row.events].reverse().find((event) => event.type === row.execution_status);
 
@@ -72,8 +72,10 @@ export default function JobCard({ order: row, companyId, varningar = [], childre
       {avvikelser.length > 0 && (
         <ul className="job-deviations">
           {avvikelser.map((event) => (
-            <li key={event.id}>
-              <strong>Avvikelse {klockslag(event.created_at)}</strong>
+            <li className={event.handled_at ? "handled" : undefined} key={event.id}>
+              <strong>
+                {event.type === "delay" ? "Försening" : "Avvikelse"} {klockslag(event.created_at)}
+              </strong>
               {event.driver_name && ` (${event.driver_name})`}
               {event.note && `: ${event.note}`}
               {event.has_photo && companyId && (
@@ -84,6 +86,7 @@ export default function JobCard({ order: row, companyId, varningar = [], childre
                   </a>
                 </>
               )}
+              {event.handled_at && " (hanterad)"}
             </li>
           ))}
         </ul>

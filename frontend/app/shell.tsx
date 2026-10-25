@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 const navigation = [
+  { href: "/followup", label: "Uppföljning" },
   { href: "/inbox", label: "Inkorg" },
   { href: "/orders", label: "Ordrar" },
   { href: "/plan", label: "Planering" },
