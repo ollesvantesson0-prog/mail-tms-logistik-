@@ -43,5 +43,15 @@ företaget.
 
 Tolkningen, originalmeddelandet och meddelandetypen sparas i `orders.details`.
 
+## Flotta
+
+Under `/api/companies/{company_id}` och med samma medlemskapskontroll:
+
+- `GET /vehicles`, `POST /vehicles`, `PUT /vehicles/{vehicle_id}`. Registreringsnummer
+  sparas utan mellanslag och med versaler. Samma nummer två gånger i ett åkeri ger 409.
+- `GET /drivers`, `POST /drivers`, `PUT /drivers/{driver_id}`.
+
+Fordon och förare tas inte bort. De inaktiveras med `is_active: false`.
+
 Självregistrering är avsiktligt bara aktiverad i utvecklingsläge. Inloggningen
 är en grund för lärande och behöver utökas och granskas innan produktionsbruk.

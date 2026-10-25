@@ -49,8 +49,7 @@ startar.
    att viktig information saknas och gult att något är osäkert. Godkänn eller kasta.
 3. **Ordrar** (`/orders`): se ordrar per status och exportera godkända som CSV.
 
-Flotta-sidan är ännu en platshållare, och det finns inga API:er för fordon
-eller förare än.
+**Flotta** (`/fleet`): lägg till, ändra och inaktivera åkeriets fordon och förare.
 
 Det här är en **lokal inlärningsversion**, inte redo för riktiga verksamhetsdata.
 Självregistrering blockeras i produktionsläge. Innan driftsättning behövs bland

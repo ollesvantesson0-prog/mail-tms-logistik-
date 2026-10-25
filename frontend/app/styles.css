@@ -402,6 +402,31 @@ th {
   text-transform: uppercase;
 }
 
+.placeholder h2 {
+  margin: 0 0 12px;
+  font-size: 20px;
+}
+
+.inactive-row td {
+  color: var(--muted);
+}
+
+.row-actions {
+  display: flex;
+  gap: 14px;
+  justify-content: flex-end;
+}
+
+.link-button.neutral {
+  color: var(--accent);
+}
+
+.button-row.compact {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
 @media (max-width: 700px) {
   .review-layout {
     grid-template-columns: 1fr;

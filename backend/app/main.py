@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from backend.app.api.auth import companies_router, router as auth_router
+from backend.app.api.fleet import router as fleet_router
 from backend.app.api.orders import router as orders_router
 from backend.app.db.session import engine
 
@@ -19,6 +20,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(companies_router)
 app.include_router(orders_router)
+app.include_router(fleet_router)
 
 
 @app.get("/api/health", tags=["system"])
