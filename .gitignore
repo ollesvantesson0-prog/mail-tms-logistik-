@@ -7,3 +7,4 @@ testresultat/
 node_modules/
 .next/
 *.tsbuildinfo
+*.db.backup*

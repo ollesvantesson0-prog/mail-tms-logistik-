@@ -427,6 +427,23 @@ th {
   border-top: 0;
 }
 
+.assign-select {
+  min-width: 130px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+/* Godkänd order som ännu saknar fordon eller förare */
+.assign-select.unassigned {
+  border-color: #fedf89;
+  background: #fffaeb;
+}
+
 @media (max-width: 700px) {
   .review-layout {
     grid-template-columns: 1fr;

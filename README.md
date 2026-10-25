@@ -40,14 +40,20 @@ kontrolleras genom medlemskap. En användare får 404 om den begär ett företag
 den inte tillhör.
 
 Databasschemat skapas/uppdateras automatiskt med Alembic när backend-containern
-startar.
+startar. Kör du backend utan Docker uppdaterar du databasen själv efter en
+ny migration:
+
+```bash
+uv run alembic -c backend/alembic.ini upgrade head
+```
 
 ## Orderflödet
 
 1. **Inkorg** (`/inbox`): klistra in ett mejl eller SMS och tryck "Tolka".
 2. **Godkänn** (`/approve`): granska och rätta varje tolkad order. Rött betyder
    att viktig information saknas och gult att något är osäkert. Godkänn eller kasta.
-3. **Ordrar** (`/orders`): se ordrar per status och exportera godkända som CSV.
+3. **Ordrar** (`/orders`): se ordrar per status, välj fordon och förare för
+   godkända ordrar och exportera dem som CSV.
 
 **Flotta** (`/fleet`): lägg till, ändra och inaktivera åkeriets fordon och förare.
 

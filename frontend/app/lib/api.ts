@@ -57,7 +57,15 @@ export type Order = {
   sammanfattning: string;
   meddelande: { text: string; avsandare: string; mottagen: string };
   order: TolkadOrder;
+  vehicle_id: string | null;
+  vehicle_registration: string | null;
+  driver_id: string | null;
+  driver_name: string | null;
 };
+
+export type Vehicle = { id: string; registration_number: string; description: string; is_active: boolean };
+
+export type Driver = { id: string; name: string; phone: string; is_active: boolean };
 
 export const MEDDELANDETYPER: Record<string, string> = {
   ny_order: "Ny order",

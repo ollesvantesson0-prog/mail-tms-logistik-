@@ -39,7 +39,10 @@ företaget.
 - `PUT /{order_id}` sparar rättningar av en order som väntar på granskning.
 - `POST /{order_id}/approve` och `POST /{order_id}/discard` granskar ordern. Efter
   det är den låst.
-- `GET /export.csv` exporterar godkända ordrar.
+- `PUT /{order_id}/assignment` med `{"vehicle_id": ..., "driver_id": ...}` tilldelar
+  fordon och förare till en godkänd order. `null` tar bort tilldelningen. Bara aktiva
+  fordon och förare i det egna åkeriet kan väljas.
+- `GET /export.csv` exporterar godkända ordrar, med fordon och förare.
 
 Tolkningen, originalmeddelandet och meddelandetypen sparas i `orders.details`.
 

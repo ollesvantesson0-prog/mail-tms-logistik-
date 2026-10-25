@@ -1,4 +1,4 @@
-"""Order intake endpoints: interpret a message, review, approve, and export orders."""
+"""Order intake endpoints: interpret, review, approve, assign, and export orders."""
 
 import csv
 import io
@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from backend.app.core.security import get_current_user, require_company_membership
 from backend.app.db.session import get_db
-from backend.app.models.entities import Order
+from backend.app.models.entities import Driver, Order, Vehicle
 from backend.app.modules.order_intake.interpreter import tolka_meddelande
 
 router = APIRouter(prefix="/api/companies/{company_id}/orders", tags=["orders"])
@@ -32,6 +32,11 @@ class UpdateOrderRequest(BaseModel):
     order: dict[str, Any]
 
 
+class AssignmentRequest(BaseModel):
+    vehicle_id: str | None = None
+    driver_id: str | None = None
+
+
 class OrderOut(BaseModel):
     id: str
     status: str
@@ -40,6 +45,10 @@ class OrderOut(BaseModel):
     sammanfattning: str
     meddelande: dict[str, Any]
     order: dict[str, Any]
+    vehicle_id: str | None
+    vehicle_registration: str | None
+    driver_id: str | None
+    driver_name: str | None
 
 
 class InterpretResponse(BaseModel):
@@ -57,6 +66,10 @@ def to_out(order: Order) -> OrderOut:
         sammanfattning=order.details.get("sammanfattning", ""),
         meddelande=order.details.get("meddelande", {}),
         order=order.details.get("order", {}),
+        vehicle_id=order.vehicle_id,
+        vehicle_registration=order.vehicle.registration_number if order.vehicle else None,
+        driver_id=order.driver_id,
+        driver_name=order.driver.name if order.driver else None,
     )
 
 
@@ -146,7 +159,9 @@ def list_orders(
     return [to_out(order) for order in db.scalars(query)]
 
 
-CSV_COLUMNS = ["id", "status", "kund", "kundreferens", "fran", "till", "datum", "gods"]
+CSV_COLUMNS = [
+    "id", "status", "kund", "kundreferens", "fran", "till", "datum", "gods", "fordon", "forare",
+]
 
 
 def csv_row(order: Order) -> dict[str, str]:
@@ -171,6 +186,8 @@ def csv_row(order: Order) -> dict[str, str]:
             f"{rad.get('antal') or ''} {rad.get('typ', '')} {rad.get('beskrivning', '')}".strip()
             for rad in gods
         ),
+        "fordon": order.vehicle.registration_number if order.vehicle else "",
+        "forare": order.driver.name if order.driver else "",
     }
 
 
@@ -254,3 +271,48 @@ def discard_order(
 ) -> OrderOut:
     require_member(request, db, company_id)
     return set_status(db, company_id, order_id, "discarded")
+
+
+def check_assignable(
+    db: Session,
+    model: type[Vehicle] | type[Driver],
+    company_id: str,
+    resource_id: str | None,
+    current_id: str | None,
+    name: str,
+) -> None:
+    """Fordonet/föraren måste tillhöra åkeriet och vara aktiv (om det inte redan är tilldelat)."""
+    if resource_id is None or resource_id == current_id:
+        return
+    resource = db.scalar(select(model).where(model.id == resource_id, model.company_id == company_id))
+    if resource is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{name} hittades inte.")
+    if not resource.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=f"{name} är inaktiv och kan inte tilldelas."
+        )
+
+
+@router.put("/{order_id}/assignment", response_model=OrderOut)
+def assign_order(
+    company_id: str,
+    order_id: str,
+    body: AssignmentRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> OrderOut:
+    require_member(request, db, company_id)
+    order = get_company_order(db, company_id, order_id)
+    if order.status != "approved":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Bara godkända ordrar kan få fordon och förare.",
+        )
+    check_assignable(db, Vehicle, company_id, body.vehicle_id, order.vehicle_id, "Fordonet")
+    check_assignable(db, Driver, company_id, body.driver_id, order.driver_id, "Föraren")
+    order.vehicle_id = body.vehicle_id
+    order.driver_id = body.driver_id
+    db.commit()
+    # Läs om relationerna så att svaret visar det nya fordonet och den nya föraren.
+    db.refresh(order)
+    return to_out(order)

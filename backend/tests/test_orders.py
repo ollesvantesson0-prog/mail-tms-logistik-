@@ -145,6 +145,57 @@ class OrderTests(unittest.TestCase):
         other = f"/api/companies/{self.company_id}/orders/{order_id}"
         self.assertEqual(self.client.get(other).status_code, 404)
 
+    def approved_order_id(self) -> str:
+        order_id = self.interpret()["ordrar"][0]["id"]
+        self.client.post(f"/api/companies/{self.company_id}/orders/{order_id}/approve")
+        return order_id
+
+    def test_assign_vehicle_and_driver(self) -> None:
+        base = f"/api/companies/{self.company_id}"
+        vehicle_id = self.client.post(f"{base}/vehicles", json={"registration_number": "ABC123"}).json()["id"]
+        driver_id = self.client.post(f"{base}/drivers", json={"name": "Kim Berg"}).json()["id"]
+        order_id = self.approved_order_id()
+
+        response = self.client.put(
+            f"{base}/orders/{order_id}/assignment",
+            json={"vehicle_id": vehicle_id, "driver_id": driver_id},
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["vehicle_registration"], "ABC123")
+        self.assertEqual(response.json()["driver_name"], "Kim Berg")
+
+        export = self.client.get(f"{base}/orders/export.csv").text
+        self.assertIn("ABC123,Kim Berg", export)
+
+        # Ta bort tilldelningen igen.
+        cleared = self.client.put(f"{base}/orders/{order_id}/assignment", json={})
+        self.assertIsNone(cleared.json()["vehicle_id"])
+        self.assertIsNone(cleared.json()["driver_name"])
+
+    def test_assignment_rules(self) -> None:
+        base = f"/api/companies/{self.company_id}"
+        pending_id = self.interpret()["ordrar"][0]["id"]
+        self.assertEqual(self.client.put(f"{base}/orders/{pending_id}/assignment", json={}).status_code, 409)
+
+        inactive = self.client.post(
+            f"{base}/vehicles", json={"registration_number": "OLD111", "is_active": False}
+        ).json()["id"]
+        order_id = self.approved_order_id()
+        response = self.client.put(f"{base}/orders/{order_id}/assignment", json={"vehicle_id": inactive})
+        self.assertEqual(response.status_code, 409)
+
+        # Ett fordon från ett annat åkeri går inte att tilldela.
+        own_company_id = self.company_id
+        self.company_id = self.create_account("Åkeri Två", "tva@example.com")
+        foreign = self.client.post(
+            f"/api/companies/{self.company_id}/vehicles", json={"registration_number": "XYZ999"}
+        ).json()["id"]
+        self.client.post("/api/auth/login", json={"email": "ett@example.com", "password": "ett-langt-testlosenord"})
+        response = self.client.put(
+            f"/api/companies/{own_company_id}/orders/{order_id}/assignment", json={"vehicle_id": foreign}
+        )
+        self.assertEqual(response.status_code, 404)
+
     def test_requires_login(self) -> None:
         self.client.post("/api/auth/logout")
         response = self.client.post(f"/api/companies/{self.company_id}/orders/interpret", json=MESSAGE)
