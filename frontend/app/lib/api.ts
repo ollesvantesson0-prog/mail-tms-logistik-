@@ -66,6 +66,18 @@ export type Order = {
   forandringar: { falt: string; fore: string; efter: string }[];
   historik: { typ: string; tid: string; sammanfattning: string }[];
   svarsutkast: { amne: string; text: string; skapad: string } | null;
+  execution_status: "picked_up" | "delivered" | null;
+  events: OrderEvent[];
+};
+
+/** Något föraren har rapporterat. */
+export type OrderEvent = {
+  id: string;
+  type: "picked_up" | "delivered" | "deviation";
+  note: string;
+  created_at: string;
+  driver_name: string | null;
+  has_photo: boolean;
 };
 
 export type MalOrder = {

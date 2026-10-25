@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 
 import { api } from "../lib/api";
 
@@ -13,7 +13,7 @@ export type Field = {
 };
 
 type Value = string | number | boolean | null;
-type Resource = { id: string; is_active: boolean } & Record<string, Value>;
+export type Resource = { id: string; is_active: boolean } & Record<string, Value>;
 type FormValues = Record<string, string | boolean>;
 
 type Props = {
@@ -23,6 +23,8 @@ type Props = {
   fields: Field[];
   addLabel: string;
   emptyText: string;
+  /** Extra knappar per rad, t.ex. förarlänken. */
+  rowActions?: (item: Resource) => ReactNode;
 };
 
 function emptyForm(fields: Field[]): FormValues {
@@ -46,7 +48,7 @@ function display(field: Field, value: Value): string {
 }
 
 /** En lista med fordon eller förare: lägg till, ändra och inaktivera. */
-export default function ResourceSection({ title, url, fields, addLabel, emptyText }: Props) {
+export default function ResourceSection({ title, url, fields, addLabel, emptyText, rowActions }: Props) {
   const [items, setItems] = useState<Resource[] | null>(null);
   const [form, setForm] = useState(() => emptyForm(fields));
   const [editingId, setEditingId] = useState("");
@@ -130,6 +132,7 @@ export default function ResourceSection({ title, url, fields, addLabel, emptyTex
               <tr>
                 {fields.map((field) => <th key={field.key}>{field.label}</th>)}
                 <th>Status</th>
+                {rowActions && <th />}
                 <th />
               </tr>
             </thead>
@@ -138,6 +141,7 @@ export default function ResourceSection({ title, url, fields, addLabel, emptyTex
                 <tr className={item.is_active ? undefined : "inactive-row"} key={item.id}>
                   {fields.map((field) => <td key={field.key}>{display(field, item[field.key])}</td>)}
                   <td>{item.is_active ? "Aktiv" : "Inaktiv"}</td>
+                  {rowActions && <td>{item.is_active && rowActions(item)}</td>}
                   <td className="row-actions">
                     <button className="link-button neutral" disabled={busy} onClick={() => edit(item)} type="button">
                       Ändra

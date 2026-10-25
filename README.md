@@ -65,6 +65,12 @@ uv run alembic -c backend/alembic.ini upgrade head
    med AI". Fasta regler varnar när ett jobb inte passar en bil (kyl, bakgavellyft,
    kran, ADR, vikt, pallplatser), både för dina egna val och för AI:ns förslag.
 
+5. **Förarna** (`/driver/<länk>`): under Flotta skapar du en personlig länk per
+   förare och skickar den med SMS. Föraren ser sina jobb för dagen i mobilen,
+   med karta och telefonnummer, och trycker Hämtat, Levererat eller Avvikelse
+   (med text och foto). Det syns direkt i planeringsvyn. Ingen app och ingen
+   inloggning behövs. En ny länk eller "Spärra länk" stänger den gamla.
+
 **Flotta** (`/fleet`): lägg till, ändra och inaktivera åkeriets fordon och förare,
 med egenskaper som maxlast, pallplatser, kyl, bakgavellyft, kran och ADR.
 

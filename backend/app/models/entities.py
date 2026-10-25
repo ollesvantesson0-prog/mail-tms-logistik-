@@ -1,6 +1,6 @@
 """Database tables for companies, users, orders, and fleet resources."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
@@ -10,6 +10,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     JSON,
+    LargeBinary,
     String,
     UniqueConstraint,
     false,
@@ -22,6 +23,11 @@ from backend.app.db.base import Base
 
 def new_id() -> str:
     return str(uuid4())
+
+
+def as_utc(moment: datetime) -> datetime:
+    """SQLite lämnar tillbaka tider utan tidszon. De är alltid UTC."""
+    return moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)
 
 
 class Company(Base):
@@ -96,11 +102,41 @@ class Order(Base):
     driver_id: Mapped[str | None] = mapped_column(
         ForeignKey("drivers.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    # Förarens senaste rapport: None (ej påbörjad), "picked_up" eller "delivered".
+    execution_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
     vehicle: Mapped["Vehicle | None"] = relationship()
+    driver: Mapped["Driver | None"] = relationship()
+    events: Mapped[list["OrderEvent"]] = relationship(
+        back_populates="order", order_by="OrderEvent.created_at", cascade="all, delete-orphan"
+    )
+
+
+class OrderEvent(Base):
+    """Något föraren har rapporterat: hämtat, levererat eller en avvikelse."""
+
+    __tablename__ = "order_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    order_id: Mapped[str] = mapped_column(
+        ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    driver_id: Mapped[str | None] = mapped_column(
+        ForeignKey("drivers.id", ondelete="SET NULL"), nullable=True
+    )
+    type: Mapped[str] = mapped_column(String(20), nullable=False)
+    note: Mapped[str] = mapped_column(String(2000), default="", nullable=False)
+    # Fotot förminskas i telefonen innan det skickas, så det får plats i databasen.
+    photo: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True, deferred=True)
+    photo_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    order: Mapped[Order] = relationship(back_populates="events")
     driver: Mapped["Driver | None"] = relationship()
 
 
@@ -139,3 +175,5 @@ class Driver(Base):
     has_adr_license: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
+    # Hash av nyckeln i förarens personliga länk. Ny länk = gammal slutar fungera.
+    access_token_hash: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)

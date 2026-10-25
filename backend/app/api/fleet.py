@@ -1,6 +1,8 @@
 """Fleet endpoints: the company's vehicles and drivers."""
 
+import hashlib
 import re
+import secrets
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -45,6 +47,11 @@ class DriverIn(BaseModel):
 
 class DriverOut(DriverIn):
     id: str
+    has_link: bool
+
+
+class DriverLink(BaseModel):
+    path: str
 
 
 def require_member(request: Request, db: Session, company_id: str) -> None:
@@ -66,7 +73,15 @@ def vehicle_out(vehicle: Vehicle) -> VehicleOut:
 
 
 def driver_out(driver: Driver) -> DriverOut:
-    return DriverOut(id=driver.id, **{field: getattr(driver, field) for field in DRIVER_FIELDS})
+    return DriverOut(
+        id=driver.id,
+        has_link=driver.access_token_hash is not None,
+        **{field: getattr(driver, field) for field in DRIVER_FIELDS},
+    )
+
+
+def hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 def save_vehicle(db: Session, vehicle: Vehicle, body: VehicleIn) -> VehicleOut:
@@ -169,3 +184,33 @@ def update_driver(
         setattr(driver, field, getattr(body, field))
     db.commit()
     return driver_out(driver)
+
+
+@router.post("/drivers/{driver_id}/link", response_model=DriverLink)
+def create_driver_link(
+    company_id: str,
+    driver_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> DriverLink:
+    """Skapar förarens personliga länk. En tidigare länk slutar fungera."""
+    require_member(request, db, company_id)
+    driver = get_company_driver(db, company_id, driver_id)
+    token = secrets.token_urlsafe(24)
+    driver.access_token_hash = hash_token(token)
+    db.commit()
+    return DriverLink(path=f"/driver/{token}")
+
+
+@router.delete("/drivers/{driver_id}/link", status_code=status.HTTP_204_NO_CONTENT)
+def revoke_driver_link(
+    company_id: str,
+    driver_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> None:
+    """Spärrar förarens länk, t.ex. om telefonen har tappats bort."""
+    require_member(request, db, company_id)
+    driver = get_company_driver(db, company_id, driver_id)
+    driver.access_token_hash = None
+    db.commit()

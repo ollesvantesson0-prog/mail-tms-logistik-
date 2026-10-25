@@ -1,6 +1,7 @@
 "use client";
 
 import { useCompanyId } from "../lib/api";
+import DriverLink from "./driver-link";
 import ResourceSection from "./resource-section";
 
 export default function FleetPage() {
@@ -42,6 +43,17 @@ export default function FleetPage() {
               { key: "phone", label: "Telefon", placeholder: "070-123 45 67" },
               { key: "has_adr_license", label: "ADR-behörighet", type: "checkbox" },
             ]}
+            rowActions={(driver) => (
+              <DriverLink
+                companyId={companyId}
+                driver={{
+                  id: driver.id,
+                  name: String(driver.name),
+                  phone: String(driver.phone ?? ""),
+                  has_link: Boolean(driver.has_link),
+                }}
+              />
+            )}
             title="Förare"
             url={`/api/companies/${companyId}/drivers`}
           />

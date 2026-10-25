@@ -64,6 +64,9 @@ export default function PlanPage() {
     setPlan(null);
     setSuggestions(null);
     load();
+    // Hämta om planen regelbundet så att förarnas rapporter syns utan att ladda om sidan.
+    const timer = window.setInterval(load, 30_000);
+    return () => window.clearInterval(timer);
   }, [load]);
 
   /** Sparar fordon och förare för flera jobb och läser sedan om planen. */
@@ -179,7 +182,7 @@ export default function PlanPage() {
             </header>
             {plan.ej_planerade.length === 0 && <p className="muted">Inga oplanerade jobb den här dagen.</p>}
             {plan.ej_planerade.map((order) => (
-              <JobCard key={order.id} order={order}>
+              <JobCard companyId={companyId} key={order.id} order={order}>
                 <select
                   aria-label="Lägg på bil"
                   className="assign-select"
@@ -247,7 +250,7 @@ export default function PlanPage() {
               ))}
               {bil.ordrar.length === 0 && <p className="muted">Inga jobb.</p>}
               {bil.ordrar.map((jobb) => (
-                <JobCard key={jobb.order.id} order={jobb.order} varningar={jobb.varningar}>
+                <JobCard companyId={companyId} key={jobb.order.id} order={jobb.order} varningar={jobb.varningar}>
                   <button
                     className="link-button"
                     disabled={busy}

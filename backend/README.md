@@ -76,6 +76,19 @@ Fordon har egenskaperna `max_weight_kg`, `pallet_places`, `has_tail_lift`,
 `has_cooling`, `has_crane` och `adr_approved`. Förare har `has_adr_license`.
 Fordon och förare tas inte bort. De inaktiveras med `is_active: false`.
 
+## Förare
+
+- `POST /api/companies/{company_id}/drivers/{driver_id}/link` skapar förarens
+  personliga länk (`/driver/<nyckel>`). Bara en hash av nyckeln sparas, och en ny
+  länk ersätter den gamla. `DELETE` på samma adress spärrar länken.
+- `GET /api/driver/{nyckel}?datum=YYYY-MM-DD` visar förarens godkända jobb för dagen.
+  Ingen inloggning krävs: nyckeln är förarens behörighet.
+- `POST /api/driver/{nyckel}/jobs/{order_id}/events` med `type` `picked_up`,
+  `delivered` eller `deviation` (text och/eller foto som base64, max 3 MB).
+  Händelserna sparas i `order_events`, och `orders.execution_status` uppdateras.
+- `GET /api/companies/{company_id}/orders/{order_id}/events/{event_id}/photo` visar
+  fotot för trafikledaren.
+
 ## Planering
 
 - `GET /api/companies/{company_id}/planning?datum=YYYY-MM-DD` ger dagens godkända

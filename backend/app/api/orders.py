@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from backend.app.core.security import get_current_user, require_company_membership
 from backend.app.db.session import get_db
-from backend.app.models.entities import Company, Driver, Order, Vehicle
+from backend.app.models.entities import Company, Driver, Order, OrderEvent, Vehicle, as_utc
 from backend.app.modules.order_intake.changes import forandringar, hitta_mal_order, sla_ihop
 from backend.app.modules.order_intake.interpreter import tolka_meddelande
 from backend.app.modules.order_intake.reply import skriv_svar
@@ -64,6 +64,9 @@ class OrderOut(BaseModel):
     forandringar: list[dict[str, str]]
     historik: list[dict[str, Any]]
     svarsutkast: dict[str, str] | None
+    # Förarens rapporter: hämtat, levererat och avvikelser.
+    execution_status: str | None
+    events: list[dict[str, Any]]
 
 
 class InterpretResponse(BaseModel):
@@ -111,6 +114,18 @@ def to_out(order: Order, db: Session) -> OrderOut:
         ),
         historik=order.details.get("historik", []),
         svarsutkast=order.details.get("svarsutkast"),
+        execution_status=order.execution_status,
+        events=[
+            {
+                "id": event.id,
+                "type": event.type,
+                "note": event.note,
+                "created_at": as_utc(event.created_at),
+                "driver_name": event.driver.name if event.driver else None,
+                "has_photo": event.photo_type is not None,
+            }
+            for event in order.events
+        ],
     )
 
 
@@ -468,3 +483,22 @@ def create_reply_draft(
     }
     db.commit()
     return to_out(order, db)
+
+
+@router.get("/{order_id}/events/{event_id}/photo")
+def event_photo(
+    company_id: str,
+    order_id: str,
+    event_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> Response:
+    """Fotot som föraren tog vid en avvikelse."""
+    require_member(request, db, company_id)
+    order = get_company_order(db, company_id, order_id)
+    event = db.scalar(
+        select(OrderEvent).where(OrderEvent.id == event_id, OrderEvent.order_id == order.id)
+    )
+    if event is None or event.photo is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fotot hittades inte.")
+    return Response(content=event.photo, media_type=event.photo_type)
