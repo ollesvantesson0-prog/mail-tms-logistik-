@@ -65,7 +65,7 @@ export default function OrdersPage() {
 
       <div className="toolbar">
         <div className="auth-tabs" aria-label="Filtrera på status">
-          {(Object.keys(STATUSAR) as OrderStatus[]).map((value) => (
+          {(["pending", "approved", "cancelled", "discarded"] as OrderStatus[]).map((value) => (
             <button
               className={value === status ? "auth-tab selected" : "auth-tab"}
               key={value}
@@ -111,6 +111,11 @@ export default function OrdersPage() {
                     <td>
                       {order.kund.foretag || "–"}
                       {order.kundreferens && <span className="muted"> · {order.kundreferens}</span>}
+                      {row.historik.some((handelse) => handelse.typ === "andring") && (
+                        <span className="badge" title={row.historik.map((handelse) => handelse.sammanfattning).join("\n")}>
+                          Ändrad
+                        </span>
+                      )}
                     </td>
                     <td>{MEDDELANDETYPER[meddelandetyp] ?? meddelandetyp}</td>
                     <td>{order.upphamtning.ort || order.upphamtning.foretag || "–"}</td>

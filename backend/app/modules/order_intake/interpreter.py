@@ -113,7 +113,7 @@ Regler:
 3. Motsägelser (t.ex. olika veckodagar eller datum i ämnesraden och meddelandetexten) ska alltid uttryckligen skrivas i "osakerheter", med båda värdena angivna. Ta även upp uppgiften i "saknas" om mottagaren behöver bekräfta den. Välj inte tyst den ena.
 4. Meddelandetyp:
    - ny_order: en beställning av transport
-   - andring: ändrar en befintlig order (fyll i "galler_order" och bara de fält som ändras; nämn i "saknas" bara sådant som behövs för ändringen)
+   - andring: ändrar en befintlig order. Fyll i "galler_order" och BARA fälten som får ett nytt värde, med det nya värdet. Allt som inte ändras ska vara tomt ("" eller null), även kunduppgifter och godsbeskrivning, eftersom ifyllda fält skriver över den befintliga ordern. Skriv aldrig kommentarer som "ändrat från 4 till 6" i fälten; sådant hör hemma i "sammanfattning". Nämn i "saknas" bara sådant som behövs för ändringen.
    - avbokning: avbokar en befintlig order (fyll i "galler_order")
    - prisforfragan: vill ha pris/offert, inte boka
    - ej_order: allt annat (fakturafrågor, allmänna frågor). Då är "ordrar" en tom lista.

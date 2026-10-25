@@ -196,6 +196,66 @@ class OrderTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 404)
 
+    def change_result(self, meddelandetyp: str, galler_order: str) -> dict:
+        andring = tolkad_order("")
+        for plats in [andring["upphamtning"], *andring["leveranser"]]:
+            for falt in plats:
+                plats[falt] = ""
+        andring["kundreferens"] = ""
+        andring["krav"]["bakgavellyft"] = False
+        andring["leveranser"][0]["tid_till"] = "14:00"
+        andring["gods"] = [{"antal": 6, "typ": "EUR-pall", "beskrivning": "", "vikt_kg": None, "matt": ""}]
+        andring["galler_order"] = galler_order
+        return {"meddelandetyp": meddelandetyp, "ordrar": [andring], "sammanfattning": "Ändring."}
+
+    def test_change_is_matched_and_applied_to_existing_order(self) -> None:
+        base = f"/api/companies/{self.company_id}/orders"
+        target_id = self.approved_order_id()
+
+        change = self.interpret(self.change_result("andring", "bb 2291"))["ordrar"][0]
+        self.assertEqual(change["mal_order"]["id"], target_id)
+        diff = {rad["falt"]: (rad["fore"], rad["efter"]) for rad in change["forandringar"]}
+        self.assertEqual(diff, {"Leverans 1: tid till": ("12:00", "14:00"), "Gods 1: antal": ("4", "6")})
+
+        approved = self.client.post(f"{base}/{change['id']}/approve")
+        self.assertEqual(approved.status_code, 200, approved.text)
+        self.assertEqual(approved.json()["status"], "applied")
+
+        target = self.client.get(f"{base}/{target_id}").json()
+        self.assertEqual(target["status"], "approved")
+        self.assertEqual(target["order"]["gods"][0]["antal"], 6)
+        self.assertEqual(target["order"]["gods"][0]["beskrivning"], "gips")  # oförändrat
+        self.assertEqual(target["order"]["leveranser"][0]["ort"], "Mölndal")  # oförändrat
+        self.assertEqual(target["historik"][0]["typ"], "andring")
+
+    def test_cancellation_cancels_existing_order(self) -> None:
+        base = f"/api/companies/{self.company_id}/orders"
+        target_id = self.approved_order_id()
+        change = self.interpret(self.change_result("avbokning", "BB-2291"))["ordrar"][0]
+        self.client.post(f"{base}/{change['id']}/approve")
+
+        target = self.client.get(f"{base}/{target_id}").json()
+        self.assertEqual(target["status"], "cancelled")
+        self.assertEqual(self.client.get(f"{base}?status=cancelled").json()[0]["id"], target_id)
+
+    def test_unmatched_change_needs_target_before_approval(self) -> None:
+        base = f"/api/companies/{self.company_id}/orders"
+        target_id = self.approved_order_id()
+        change = self.interpret(self.change_result("andring", "4471"))["ordrar"][0]
+        self.assertIsNone(change["mal_order"])
+        self.assertEqual(self.client.post(f"{base}/{change['id']}/approve").status_code, 409)
+
+        chosen = self.client.put(f"{base}/{change['id']}/target", json={"mal_order_id": target_id})
+        self.assertEqual(chosen.status_code, 200, chosen.text)
+        self.assertEqual(chosen.json()["mal_order"]["id"], target_id)
+        self.assertEqual(self.client.post(f"{base}/{change['id']}/approve").status_code, 200)
+
+        # En ändring kan inte peka på sig själv eller på en okänd order.
+        other = self.interpret(self.change_result("andring", ""))["ordrar"][0]
+        self.assertEqual(
+            self.client.put(f"{base}/{other['id']}/target", json={"mal_order_id": other["id"]}).status_code, 404
+        )
+
     def test_requires_login(self) -> None:
         self.client.post("/api/auth/logout")
         response = self.client.post(f"/api/companies/{self.company_id}/orders/interpret", json=MESSAGE)

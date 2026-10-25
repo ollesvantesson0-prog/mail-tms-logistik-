@@ -47,7 +47,7 @@ export type TolkadOrder = {
   osakerheter: string[];
 };
 
-export type OrderStatus = "pending" | "approved" | "discarded";
+export type OrderStatus = "pending" | "approved" | "discarded" | "applied" | "cancelled";
 
 export type Order = {
   id: string;
@@ -61,7 +61,23 @@ export type Order = {
   vehicle_registration: string | null;
   driver_id: string | null;
   driver_name: string | null;
+  /** Bara för ändringar och avbokningar: ordern som meddelandet gäller. */
+  mal_order: MalOrder | null;
+  forandringar: { falt: string; fore: string; efter: string }[];
+  historik: { typ: string; tid: string; sammanfattning: string }[];
 };
+
+export type MalOrder = {
+  id: string;
+  status: OrderStatus;
+  kund: string;
+  kundreferens: string;
+  fran: string;
+  till: string;
+  datum: string;
+};
+
+export const CHANGE_TYPES = ["andring", "avbokning"];
 
 export type Vehicle = { id: string; registration_number: string; description: string; is_active: boolean };
 
@@ -79,6 +95,8 @@ export const STATUSAR: Record<OrderStatus, string> = {
   pending: "Väntar på granskning",
   approved: "Godkänd",
   discarded: "Kastad",
+  cancelled: "Avbokad",
+  applied: "Genomförd ändring",
 };
 
 export function tomPlats(): Plats {

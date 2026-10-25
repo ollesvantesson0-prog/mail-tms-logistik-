@@ -52,6 +52,8 @@ uv run alembic -c backend/alembic.ini upgrade head
 1. **Inkorg** (`/inbox`): klistra in ett mejl eller SMS och tryck "Tolka".
 2. **Godkänn** (`/approve`): granska och rätta varje tolkad order. Rött betyder
    att viktig information saknas och gult att något är osäkert. Godkänn eller kasta.
+   Ändringar och avbokningar kopplas till den befintliga ordern via kundreferensen,
+   och du ser vad som ändras (före → efter) innan du genomför det.
 3. **Ordrar** (`/orders`): se ordrar per status, välj fordon och förare för
    godkända ordrar och exportera dem som CSV.
 

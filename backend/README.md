@@ -46,6 +46,17 @@ företaget.
 
 Tolkningen, originalmeddelandet och meddelandetypen sparas i `orders.details`.
 
+### Ändringar och avbokningar
+
+- Vid tolkningen letas ordern upp vars kundreferens matchar `galler_order`
+  ("BB 2291" = "BB-2291"). Finns flera träffar vinner en ensam godkänd order,
+  annars väljer människan. Logiken finns i `app/modules/order_intake/changes.py`.
+- `PUT /{order_id}/target` med `{"mal_order_id": ...}` väljer målordern för hand.
+- `approve` på en ändring skriver ifyllda fält till målordern (kunduppgifterna
+  ändras aldrig). En avbokning sätter målordern till `cancelled`. Själva
+  ändringsraden får status `applied`, och målordern får en post i `historik`.
+- Svaret innehåller `mal_order` och `forandringar` (före/efter per fält).
+
 ## Flotta
 
 Under `/api/companies/{company_id}` och med samma medlemskapskontroll:

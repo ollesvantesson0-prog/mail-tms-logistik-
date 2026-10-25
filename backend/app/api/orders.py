@@ -2,7 +2,7 @@
 
 import csv
 import io
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Literal
 
 import anthropic
@@ -15,11 +15,14 @@ from sqlalchemy.orm import Session
 from backend.app.core.security import get_current_user, require_company_membership
 from backend.app.db.session import get_db
 from backend.app.models.entities import Driver, Order, Vehicle
+from backend.app.modules.order_intake.changes import forandringar, hitta_mal_order, sla_ihop
 from backend.app.modules.order_intake.interpreter import tolka_meddelande
 
 router = APIRouter(prefix="/api/companies/{company_id}/orders", tags=["orders"])
 
-OrderStatus = Literal["pending", "approved", "discarded"]
+# applied = en ändring/avbokning som har genomförts på sin målorder.
+OrderStatus = Literal["pending", "approved", "discarded", "applied", "cancelled"]
+CHANGE_TYPES = ("andring", "avbokning")
 
 
 class InterpretRequest(BaseModel):
@@ -30,6 +33,10 @@ class InterpretRequest(BaseModel):
 
 class UpdateOrderRequest(BaseModel):
     order: dict[str, Any]
+
+
+class TargetRequest(BaseModel):
+    mal_order_id: str | None
 
 
 class AssignmentRequest(BaseModel):
@@ -49,6 +56,10 @@ class OrderOut(BaseModel):
     vehicle_registration: str | None
     driver_id: str | None
     driver_name: str | None
+    # Bara för ändringar och avbokningar: ordern som meddelandet gäller.
+    mal_order: dict[str, Any] | None
+    forandringar: list[dict[str, str]]
+    historik: list[dict[str, Any]]
 
 
 class InterpretResponse(BaseModel):
@@ -57,7 +68,27 @@ class InterpretResponse(BaseModel):
     ordrar: list[OrderOut]
 
 
-def to_out(order: Order) -> OrderOut:
+def is_change(order: Order) -> bool:
+    return order.details.get("meddelandetyp") in CHANGE_TYPES
+
+
+def target_of(db: Session, order: Order) -> Order | None:
+    mal_order_id = order.details.get("mal_order_id")
+    if not mal_order_id:
+        return None
+    return db.scalar(
+        select(Order).where(Order.id == mal_order_id, Order.company_id == order.company_id)
+    )
+
+
+def target_summary(target: Order) -> dict[str, Any]:
+    row = csv_row(target)
+    return {falt: row[falt] for falt in ("id", "status", "kund", "kundreferens", "fran", "till", "datum")}
+
+
+def to_out(order: Order, db: Session) -> OrderOut:
+    target = target_of(db, order) if is_change(order) else None
+    show_diff = target is not None and order.details["meddelandetyp"] == "andring"
     return OrderOut(
         id=order.id,
         status=order.status,
@@ -70,6 +101,11 @@ def to_out(order: Order) -> OrderOut:
         vehicle_registration=order.vehicle.registration_number if order.vehicle else None,
         driver_id=order.driver_id,
         driver_name=order.driver.name if order.driver else None,
+        mal_order=target_summary(target) if target else None,
+        forandringar=(
+            forandringar(target.details["order"], order.details["order"]) if show_diff else []
+        ),
+        historik=order.details.get("historik", []),
     )
 
 
@@ -83,6 +119,16 @@ def get_company_order(db: Session, company_id: str, order_id: str) -> Order:
     if order is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ordern hittades inte.")
     return order
+
+
+def target_candidates(db: Session, company_id: str) -> list[Order]:
+    """Ordrar som en ändring eller avbokning kan gälla."""
+    orders = db.scalars(
+        select(Order).where(
+            Order.company_id == company_id, Order.status.in_(("pending", "approved"))
+        )
+    )
+    return [order for order in orders if not is_change(order)]
 
 
 def require_pending(order: Order) -> None:
@@ -119,6 +165,13 @@ def interpret_message(
         "avsandare": body.avsandare,
         "mottagen": body.mottagen.isoformat(),
     }
+    kandidater = []
+    if resultat["meddelandetyp"] in CHANGE_TYPES:
+        kandidater = [
+            (order.id, order.status, order.details["order"])
+            for order in target_candidates(db, company_id)
+        ]
+
     # Varje tolkad order blir en egen rad som granskas separat.
     orders = [
         Order(
@@ -129,6 +182,8 @@ def interpret_message(
                 "sammanfattning": resultat["sammanfattning"],
                 "meddelande": meddelande,
                 "order": tolkad_order,
+                # Ändringar och avbokningar kopplas till ordern de gäller om den hittas.
+                "mal_order_id": hitta_mal_order(tolkad_order["galler_order"], kandidater),
             },
         )
         for tolkad_order in resultat["ordrar"]
@@ -141,7 +196,7 @@ def interpret_message(
     return InterpretResponse(
         meddelandetyp=resultat["meddelandetyp"],
         sammanfattning=resultat["sammanfattning"],
-        ordrar=[to_out(order) for order in orders],
+        ordrar=[to_out(order, db) for order in orders],
     )
 
 
@@ -156,7 +211,7 @@ def list_orders(
     query = select(Order).where(Order.company_id == company_id).order_by(Order.created_at.desc())
     if status_filter is not None:
         query = query.where(Order.status == status_filter)
-    return [to_out(order) for order in db.scalars(query)]
+    return [to_out(order, db) for order in db.scalars(query)]
 
 
 CSV_COLUMNS = [
@@ -209,7 +264,7 @@ def export_orders_csv(
     writer.writerows(csv_row(order) for order in orders)
     return Response(
         # BOM så att Excel visar å, ä och ö rätt.
-        content="﻿" + buffer.getvalue(),
+        content="\ufeff" + buffer.getvalue(),
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="ordrar.csv"'},
     )
@@ -223,7 +278,7 @@ def get_order(
     db: Session = Depends(get_db),
 ) -> OrderOut:
     require_member(request, db, company_id)
-    return to_out(get_company_order(db, company_id, order_id))
+    return to_out(get_company_order(db, company_id, order_id), db)
 
 
 @router.put("/{order_id}", response_model=OrderOut)
@@ -240,15 +295,70 @@ def update_order(
     # Tilldela en ny dict så att SQLAlchemy märker att JSON-fältet ändrats.
     order.details = {**order.details, "order": body.order}
     db.commit()
-    return to_out(order)
+    return to_out(order, db)
+
+
+@router.put("/{order_id}/target", response_model=OrderOut)
+def set_target(
+    company_id: str,
+    order_id: str,
+    body: TargetRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> OrderOut:
+    """Välj för hand vilken order en ändring eller avbokning gäller."""
+    require_member(request, db, company_id)
+    order = get_company_order(db, company_id, order_id)
+    require_pending(order)
+    if not is_change(order):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Bara ändringar och avbokningar gäller en annan order.",
+        )
+    if body.mal_order_id is not None and body.mal_order_id not in {
+        candidate.id for candidate in target_candidates(db, company_id)
+    }:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Målordern hittades inte.")
+    order.details = {**order.details, "mal_order_id": body.mal_order_id}
+    db.commit()
+    return to_out(order, db)
+
+
+def apply_change(db: Session, change: Order) -> None:
+    """Genomför en ändring eller avbokning på målordern och sparar det i dess historik."""
+    target = target_of(db, change)
+    if target is None or target.status not in ("pending", "approved") or is_change(target):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Välj vilken order ändringen gäller innan du godkänner.",
+        )
+    typ = change.details["meddelandetyp"]
+    handelse: dict[str, Any] = {
+        "typ": typ,
+        "andring_id": change.id,
+        "tid": datetime.now(timezone.utc).isoformat(),
+        "sammanfattning": change.details.get("sammanfattning", ""),
+    }
+    details = dict(target.details)
+    if typ == "andring":
+        handelse["forandringar"] = forandringar(details["order"], change.details["order"])
+        details["order"] = sla_ihop(details["order"], change.details["order"])
+    else:
+        target.status = "cancelled"
+    details["historik"] = [*details.get("historik", []), handelse]
+    target.details = details
+    change.status = "applied"
 
 
 def set_status(db: Session, company_id: str, order_id: str, new_status: str) -> OrderOut:
     order = get_company_order(db, company_id, order_id)
     require_pending(order)
-    order.status = new_status
+    if new_status == "approved" and is_change(order):
+        apply_change(db, order)
+    else:
+        order.status = new_status
     db.commit()
-    return to_out(order)
+    return to_out(order, db)
 
 
 @router.post("/{order_id}/approve", response_model=OrderOut)
@@ -315,4 +425,4 @@ def assign_order(
     db.commit()
     # Läs om relationerna så att svaret visar det nya fordonet och den nya föraren.
     db.refresh(order)
-    return to_out(order)
+    return to_out(order, db)

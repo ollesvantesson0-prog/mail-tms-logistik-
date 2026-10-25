@@ -3,7 +3,16 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { api, MEDDELANDETYPER, ordersUrl, useCompanyId, type Order, type TolkadOrder } from "../lib/api";
+import {
+  api,
+  CHANGE_TYPES,
+  MEDDELANDETYPER,
+  ordersUrl,
+  useCompanyId,
+  type Order,
+  type TolkadOrder,
+} from "../lib/api";
+import ChangePanel from "./change-panel";
 import OrderEditor from "./order-editor";
 
 /** Tar bort tomma rader i listorna innan ordern sparas. */
@@ -43,6 +52,12 @@ export default function ApprovePage() {
   }, [companyId]);
 
   const selected = orders?.find((order) => order.id === selectedId) ?? null;
+  const isChange = selected !== null && CHANGE_TYPES.includes(selected.meddelandetyp);
+  const isCancellation = selected?.meddelandetyp === "avbokning";
+
+  function replaceOrder(saved: Order) {
+    setOrders((current) => current!.map((order) => (order.id === saved.id ? saved : order)));
+  }
 
   function select(order: Order) {
     setSelectedId(order.id);
@@ -55,7 +70,7 @@ export default function ApprovePage() {
       method: "PUT",
       body: JSON.stringify({ order: rensa(draft!) }),
     });
-    setOrders((current) => current!.map((order) => (order.id === saved.id ? saved : order)));
+    replaceOrder(saved);
     setDraft(saved.order);
     return saved;
   }
@@ -74,7 +89,15 @@ export default function ApprovePage() {
       await api<Order>(ordersUrl(companyId, `/${selectedId}/${action}`), { method: "POST" });
       const remaining = orders!.filter((order) => order.id !== selectedId);
       setOrders(remaining);
-      setMessage(action === "approve" ? "Ordern är godkänd." : "Ordern är kastad.");
+      setMessage(
+        action === "discard"
+          ? "Ordern är kastad."
+          : isCancellation
+            ? "Ordern är avbokad."
+            : isChange
+              ? "Ändringen är genomförd på ordern."
+              : "Ordern är godkänd.",
+      );
       if (remaining.length > 0) {
         select(remaining[0]);
       } else {
@@ -140,16 +163,35 @@ export default function ApprovePage() {
                 <pre>{selected.meddelande.text}</pre>
               </details>
 
-              <OrderEditor
-                key={selected.id}
-                meddelandetyp={selected.meddelandetyp}
-                onChange={setDraft}
-                order={draft}
-              />
+              {isChange && (
+                <ChangePanel companyId={companyId} onError={setError} onSaved={replaceOrder} order={selected} />
+              )}
+
+              {!isCancellation && (
+                <>
+                  {isChange && (
+                    <p className="muted">
+                      Tolkade fält i ändringen. Bara ifyllda fält ändras på ordern. Tryck "Spara utkast"
+                      för att uppdatera jämförelsen ovan.
+                    </p>
+                  )}
+                  <OrderEditor
+                    key={selected.id}
+                    meddelandetyp={selected.meddelandetyp}
+                    onChange={setDraft}
+                    order={draft}
+                  />
+                </>
+              )}
 
               <div className="button-row">
-                <button className="primary-button" disabled={busy} onClick={() => run("approve")} type="button">
-                  Godkänn
+                <button
+                  className="primary-button"
+                  disabled={busy || (isChange && !selected.mal_order)}
+                  onClick={() => run("approve")}
+                  type="button"
+                >
+                  {isCancellation ? "Avboka ordern" : isChange ? "Genomför ändringen" : "Godkänn"}
                 </button>
                 <button className="secondary-button" disabled={busy} onClick={() => run("save")} type="button">
                   Spara utkast

@@ -444,6 +444,60 @@ th {
   background: #fffaeb;
 }
 
+.change-panel {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  border: 1px solid #b2ddff;
+  border-radius: 8px;
+  background: #eff8ff;
+}
+
+.change-panel p {
+  margin: 0;
+}
+
+.change-panel label {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.change-panel select {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.diff-table td {
+  background: var(--surface);
+}
+
+.diff-before {
+  color: #b42318;
+  text-decoration: line-through;
+}
+
+.diff-after {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #eff8ff;
+  color: #175cd3;
+  font-size: 12px;
+}
+
 @media (max-width: 700px) {
   .review-layout {
     grid-template-columns: 1fr;
