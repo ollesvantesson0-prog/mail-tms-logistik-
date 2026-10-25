@@ -11,6 +11,7 @@ export const metadata: Metadata = {
 const navigation = [
   { href: "/inbox", label: "Inkorg" },
   { href: "/orders", label: "Ordrar" },
+  { href: "/plan", label: "Planering" },
   { href: "/fleet", label: "Flotta" },
   { href: "/approve", label: "Godkänn" },
   { href: "/login", label: "Logga in" },

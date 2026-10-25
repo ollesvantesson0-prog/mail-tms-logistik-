@@ -7,11 +7,14 @@ import { api } from "../lib/api";
 export type Field = {
   key: string;
   label: string;
+  type?: "text" | "number" | "checkbox";
   required?: boolean;
   placeholder?: string;
 };
 
-type Resource = { id: string; is_active: boolean } & Record<string, string | boolean>;
+type Value = string | number | boolean | null;
+type Resource = { id: string; is_active: boolean } & Record<string, Value>;
+type FormValues = Record<string, string | boolean>;
 
 type Props = {
   title: string;
@@ -22,8 +25,24 @@ type Props = {
   emptyText: string;
 };
 
-function emptyForm(fields: Field[]): Record<string, string> {
-  return Object.fromEntries(fields.map((field) => [field.key, ""]));
+function emptyForm(fields: Field[]): FormValues {
+  return Object.fromEntries(fields.map((field) => [field.key, field.type === "checkbox" ? false : ""]));
+}
+
+/** Formulärets värden som API:et vill ha dem: tal som tal, tomma tal som null. */
+function toBody(fields: Field[], form: FormValues): Record<string, Value> {
+  return Object.fromEntries(
+    fields.map((field) => {
+      const value = form[field.key];
+      if (field.type === "number") return [field.key, value === "" ? null : Number(value)];
+      return [field.key, value];
+    }),
+  );
+}
+
+function display(field: Field, value: Value): string {
+  if (field.type === "checkbox") return value ? "✓" : "–";
+  return value === null || value === "" ? "–" : String(value);
 }
 
 /** En lista med fordon eller förare: lägg till, ändra och inaktivera. */
@@ -47,7 +66,7 @@ export default function ResourceSection({ title, url, fields, addLabel, emptyTex
     });
   }
 
-  async function send(body: Record<string, string | boolean>, id = "") {
+  async function send(body: Record<string, Value>, id = "") {
     setBusy(true);
     setError("");
     try {
@@ -68,13 +87,20 @@ export default function ResourceSection({ title, url, fields, addLabel, emptyTex
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const current = items?.find((item) => item.id === editingId);
-    const ok = await send({ ...form, is_active: current?.is_active ?? true }, editingId);
+    const ok = await send({ ...toBody(fields, form), is_active: current?.is_active ?? true }, editingId);
     if (ok) cancel();
   }
 
   function edit(item: Resource) {
     setEditingId(item.id);
-    setForm(Object.fromEntries(fields.map((field) => [field.key, String(item[field.key] ?? "")])));
+    setForm(
+      Object.fromEntries(
+        fields.map((field) => [
+          field.key,
+          field.type === "checkbox" ? Boolean(item[field.key]) : String(item[field.key] ?? ""),
+        ]),
+      ),
+    );
   }
 
   function cancel() {
@@ -86,6 +112,9 @@ export default function ResourceSection({ title, url, fields, addLabel, emptyTex
     const values = Object.fromEntries(fields.map((field) => [field.key, item[field.key]]));
     send({ ...values, is_active: !item.is_active }, item.id);
   }
+
+  const textFields = fields.filter((field) => field.type !== "checkbox");
+  const checkboxFields = fields.filter((field) => field.type === "checkbox");
 
   return (
     <section className="placeholder">
@@ -107,7 +136,7 @@ export default function ResourceSection({ title, url, fields, addLabel, emptyTex
             <tbody>
               {items.map((item) => (
                 <tr className={item.is_active ? undefined : "inactive-row"} key={item.id}>
-                  {fields.map((field) => <td key={field.key}>{String(item[field.key] || "–")}</td>)}
+                  {fields.map((field) => <td key={field.key}>{display(field, item[field.key])}</td>)}
                   <td>{item.is_active ? "Aktiv" : "Inaktiv"}</td>
                   <td className="row-actions">
                     <button className="link-button neutral" disabled={busy} onClick={() => edit(item)} type="button">
@@ -127,18 +156,34 @@ export default function ResourceSection({ title, url, fields, addLabel, emptyTex
       <form className="auth-form" onSubmit={submit}>
         <h3>{editingId ? "Ändra" : addLabel}</h3>
         <div className="field-grid">
-          {fields.map((field) => (
+          {textFields.map((field) => (
             <label key={field.key}>
               {field.label}
               <input
+                min={field.type === "number" ? 0 : undefined}
                 onChange={(event) => setForm({ ...form, [field.key]: event.target.value })}
                 placeholder={field.placeholder}
                 required={field.required}
-                value={form[field.key]}
+                type={field.type ?? "text"}
+                value={form[field.key] as string}
               />
             </label>
           ))}
         </div>
+        {checkboxFields.length > 0 && (
+          <div className="checkbox-grid">
+            {checkboxFields.map((field) => (
+              <label className="checkbox" key={field.key}>
+                <input
+                  checked={form[field.key] as boolean}
+                  onChange={(event) => setForm({ ...form, [field.key]: event.target.checked })}
+                  type="checkbox"
+                />
+                {field.label}
+              </label>
+            ))}
+          </div>
+        )}
         <div className="button-row compact">
           <button className="primary-button" disabled={busy} type="submit">
             {editingId ? "Spara" : "Lägg till"}

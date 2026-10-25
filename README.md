@@ -60,7 +60,13 @@ uv run alembic -c backend/alembic.ini upgrade head
 3. **Ordrar** (`/orders`): se ordrar per status, välj fordon och förare för
    godkända ordrar och exportera dem som CSV.
 
-**Flotta** (`/fleet`): lägg till, ändra och inaktivera åkeriets fordon och förare.
+4. **Planering** (`/plan`): en dag i taget, med en kolumn för oplanerade jobb och en
+   per bil. Lägg jobb på bilar och välj förare för dagen, eller tryck "Föreslå plan
+   med AI". Fasta regler varnar när ett jobb inte passar en bil (kyl, bakgavellyft,
+   kran, ADR, vikt, pallplatser), både för dina egna val och för AI:ns förslag.
+
+**Flotta** (`/fleet`): lägg till, ändra och inaktivera åkeriets fordon och förare,
+med egenskaper som maxlast, pallplatser, kyl, bakgavellyft, kran och ADR.
 
 Det här är en **lokal inlärningsversion**, inte redo för riktiga verksamhetsdata.
 Självregistrering blockeras i produktionsläge. Innan driftsättning behövs bland

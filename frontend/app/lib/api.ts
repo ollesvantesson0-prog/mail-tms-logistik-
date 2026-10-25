@@ -80,9 +80,20 @@ export type MalOrder = {
 
 export const CHANGE_TYPES = ["andring", "avbokning"];
 
-export type Vehicle = { id: string; registration_number: string; description: string; is_active: boolean };
+export type Vehicle = {
+  id: string;
+  registration_number: string;
+  description: string;
+  is_active: boolean;
+  max_weight_kg: number | null;
+  pallet_places: number | null;
+  has_tail_lift: boolean;
+  has_cooling: boolean;
+  has_crane: boolean;
+  adr_approved: boolean;
+};
 
-export type Driver = { id: string; name: string; phone: string; is_active: boolean };
+export type Driver = { id: string; name: string; phone: string; is_active: boolean; has_adr_license: boolean };
 
 export const MEDDELANDETYPER: Record<string, string> = {
   ny_order: "Ny order",

@@ -72,7 +72,22 @@ Under `/api/companies/{company_id}` och med samma medlemskapskontroll:
   sparas utan mellanslag och med versaler. Samma nummer två gånger i ett åkeri ger 409.
 - `GET /drivers`, `POST /drivers`, `PUT /drivers/{driver_id}`.
 
+Fordon har egenskaperna `max_weight_kg`, `pallet_places`, `has_tail_lift`,
+`has_cooling`, `has_crane` och `adr_approved`. Förare har `has_adr_license`.
 Fordon och förare tas inte bort. De inaktiveras med `is_active: false`.
+
+## Planering
+
+- `GET /api/companies/{company_id}/planning?datum=YYYY-MM-DD` ger dagens godkända
+  jobb per bil, oplanerade jobb, varningar och förare. Ett jobbs dag är
+  upphämtningsdatumet, annars första leveransdatumet.
+- `POST /api/companies/{company_id}/planning/suggest` med `{"datum": ...}` låter
+  Claude föreslå bil och förare för dagens oplanerade jobb
+  (`app/modules/planning/planner.py`). Förslaget sparas inte. Det genomförs via
+  `PUT /orders/{id}/assignment`.
+- De fasta reglerna i `app/modules/planning/checks.py` kontrollerar kyl,
+  bakgavellyft, kran, ADR (fordon och förare), vikt och pallplatser, och de
+  används både för planen och för AI:ns förslag.
 
 Självregistrering är avsiktligt bara aktiverad i utvecklingsläge. Inloggningen
 är en grund för lärande och behöver utökas och granskas innan produktionsbruk.

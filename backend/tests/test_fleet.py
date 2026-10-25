@@ -48,9 +48,15 @@ class FleetTests(unittest.TestCase):
         return f"/api/companies/{self.company_id}{rest}"
 
     def test_create_list_and_update_vehicle(self) -> None:
-        created = self.client.post(self.url("/vehicles"), json={"registration_number": "abc 123", "description": "Kylbil"})
+        created = self.client.post(
+            self.url("/vehicles"),
+            json={"registration_number": "abc 123", "description": "Kylbil", "has_cooling": True, "pallet_places": 18},
+        )
         self.assertEqual(created.status_code, 201, created.text)
         self.assertEqual(created.json()["registration_number"], "ABC123")
+        self.assertTrue(created.json()["has_cooling"])
+        self.assertEqual(created.json()["pallet_places"], 18)
+        self.assertIsNone(created.json()["max_weight_kg"])
 
         vehicle_id = created.json()["id"]
         updated = self.client.put(
@@ -74,9 +80,12 @@ class FleetTests(unittest.TestCase):
         self.assertEqual(self.client.post(self.url("/vehicles"), json={"registration_number": "ABC123"}).status_code, 201)
 
     def test_create_and_update_driver(self) -> None:
-        created = self.client.post(self.url("/drivers"), json={"name": " Kim Berg ", "phone": "070-111 22 33"})
+        created = self.client.post(
+            self.url("/drivers"), json={"name": " Kim Berg ", "phone": "070-111 22 33", "has_adr_license": True}
+        )
         self.assertEqual(created.status_code, 201, created.text)
         self.assertEqual(created.json()["name"], "Kim Berg")
+        self.assertTrue(created.json()["has_adr_license"])
 
         driver_id = created.json()["id"]
         updated = self.client.put(self.url(f"/drivers/{driver_id}"), json={"name": "Kim Berg", "is_active": False})

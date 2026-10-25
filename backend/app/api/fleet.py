@@ -4,7 +4,7 @@ import re
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, StringConstraints
+from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -24,26 +24,27 @@ class VehicleIn(BaseModel):
     ]
     description: Text = ""
     is_active: bool = True
+    max_weight_kg: int | None = Field(default=None, ge=0, le=100000)
+    pallet_places: int | None = Field(default=None, ge=0, le=100)
+    has_tail_lift: bool = False
+    has_cooling: bool = False
+    has_crane: bool = False
+    adr_approved: bool = False
 
 
-class VehicleOut(BaseModel):
+class VehicleOut(VehicleIn):
     id: str
-    registration_number: str
-    description: str
-    is_active: bool
 
 
 class DriverIn(BaseModel):
     name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
     phone: Annotated[str, StringConstraints(strip_whitespace=True, max_length=50)] = ""
     is_active: bool = True
+    has_adr_license: bool = False
 
 
-class DriverOut(BaseModel):
+class DriverOut(DriverIn):
     id: str
-    name: str
-    phone: str
-    is_active: bool
 
 
 def require_member(request: Request, db: Session, company_id: str) -> None:
@@ -56,24 +57,23 @@ def normalize_registration(value: str) -> str:
     return re.sub(r"[\s-]", "", value).upper()
 
 
+VEHICLE_FIELDS = list(VehicleIn.model_fields)
+DRIVER_FIELDS = list(DriverIn.model_fields)
+
+
 def vehicle_out(vehicle: Vehicle) -> VehicleOut:
-    return VehicleOut(
-        id=vehicle.id,
-        registration_number=vehicle.registration_number,
-        description=vehicle.description,
-        is_active=vehicle.is_active,
-    )
+    return VehicleOut(id=vehicle.id, **{field: getattr(vehicle, field) for field in VEHICLE_FIELDS})
 
 
 def driver_out(driver: Driver) -> DriverOut:
-    return DriverOut(id=driver.id, name=driver.name, phone=driver.phone, is_active=driver.is_active)
+    return DriverOut(id=driver.id, **{field: getattr(driver, field) for field in DRIVER_FIELDS})
 
 
 def save_vehicle(db: Session, vehicle: Vehicle, body: VehicleIn) -> VehicleOut:
     registration_number = normalize_registration(body.registration_number)
+    for field in VEHICLE_FIELDS:
+        setattr(vehicle, field, getattr(body, field))
     vehicle.registration_number = registration_number
-    vehicle.description = body.description
-    vehicle.is_active = body.is_active
     try:
         db.add(vehicle)
         db.commit()
@@ -149,7 +149,7 @@ def create_driver(
     db: Session = Depends(get_db),
 ) -> DriverOut:
     require_member(request, db, company_id)
-    driver = Driver(company_id=company_id, name=body.name, phone=body.phone, is_active=body.is_active)
+    driver = Driver(company_id=company_id, **body.model_dump())
     db.add(driver)
     db.commit()
     return driver_out(driver)
@@ -165,8 +165,7 @@ def update_driver(
 ) -> DriverOut:
     require_member(request, db, company_id)
     driver = get_company_driver(db, company_id, driver_id)
-    driver.name = body.name
-    driver.phone = body.phone
-    driver.is_active = body.is_active
+    for field in DRIVER_FIELDS:
+        setattr(driver, field, getattr(body, field))
     db.commit()
     return driver_out(driver)

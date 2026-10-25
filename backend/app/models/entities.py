@@ -8,9 +8,11 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Integer,
     JSON,
     String,
     UniqueConstraint,
+    false,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -115,6 +117,13 @@ class Vehicle(Base):
     registration_number: Mapped[str] = mapped_column(String(20), nullable=False)
     description: Mapped[str] = mapped_column(String(200), default="", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Egenskaper som avgör vilka jobb bilen kan ta. None = okänt.
+    max_weight_kg: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    pallet_places: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    has_tail_lift: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    has_cooling: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    has_crane: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    adr_approved: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
 
 
 class Driver(Base):
@@ -127,3 +136,6 @@ class Driver(Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     phone: Mapped[str] = mapped_column(String(50), default="", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    has_adr_license: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
